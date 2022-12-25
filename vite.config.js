@@ -5,6 +5,14 @@ const config = {
 	plugins: [sveltekit()],
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}']
+	},
+	define: {
+		global: 'window'
+	},
+	resolve: {
+		alias: {
+			'node-fetch': 'isomorphic-fetch'
+		}
 	}
 };
 
