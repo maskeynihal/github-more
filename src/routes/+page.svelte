@@ -52,6 +52,8 @@
 	 */
 	let selectedBranches = [];
 
+	let deletedBranches = {};
+
 	/**
 	 * Set the github token to use for API.
 	 *
@@ -128,8 +130,29 @@
 		}
 	};
 
-	const handleBranchDelete = () => {
-		console.log('Delete Branch');
+	const handleBranchDelete = async () => {
+		const deletionPromises = selectedBranches.map(async (branch) => {
+			deletedBranches = {
+				...deletedBranches,
+				[branch]: { processing: true }
+			};
+
+			const deleted = await octokit?.rest.git.deleteRef({
+				...formInput,
+				ref: `heads/${branch}`
+			});
+
+			console.log({ deleted });
+
+			deletedBranches = {
+				...deletedBranches,
+				[branch]: { ...deletedBranches[branch], deleted: true, processing: false }
+			};
+
+			return deleted;
+		});
+
+		await Promise.all(deletionPromises);
 	};
 </script>
 
@@ -153,86 +176,97 @@
 		>
 	</div>
 
-	<div class="flex flex-row gap-4 mt-8">
-		<div class="gap-4">
-			<div class="form">
-				<input
-					type="text"
-					class="requred px-2 border-b border-indigo500 focus:outline-none focus:border-indigo-800"
-					name="owner"
-					placeholder="Enter organization or username"
-					bind:value={formInput.owner}
-					on:change={() => (repo.error = '')}
-				/>
+	{#if octokit}
+		<div class="flex flex-row gap-4 mt-8">
+			<div class="gap-4">
+				<div class="form">
+					<input
+						type="text"
+						class="requred px-2 border-b border-indigo500 focus:outline-none focus:border-indigo-800"
+						name="owner"
+						placeholder="Enter organization or username"
+						bind:value={formInput.owner}
+						on:change={() => (repo.error = '')}
+					/>
 
-				<input
-					type="text"
-					class="requred px-2 border-b border-indigo500 focus:outline-none focus:border-indigo-800"
-					name="repo"
-					placeholder="Enter repo name"
-					bind:value={formInput.repo}
-					on:change={() => (repo.error = '')}
-				/>
+					<input
+						type="text"
+						class="requred px-2 border-b border-indigo500 focus:outline-none focus:border-indigo-800"
+						name="repo"
+						placeholder="Enter repo name"
+						bind:value={formInput.repo}
+						on:change={() => (repo.error = '')}
+					/>
 
-				<button
-					class="p-2 bg-indigo-500 hover:bg-indigo-700 text-white rounded-sm"
-					on:click={() => searchRepo(formInput)}>Search</button
-				>
+					<button
+						class="p-2 bg-indigo-500 hover:bg-indigo-700 text-white rounded-sm"
+						on:click={() => searchRepo(formInput)}>Search</button
+					>
+				</div>
+				{#if repo.error}
+					<p class="text-red-500">{repo.error}</p>
+				{/if}
 			</div>
-			{#if repo.error}
-				<p class="text-red-500">{repo.error}</p>
-			{/if}
+
+			<div>
+				<h2>Repo Description</h2>
+
+				{#if repo.status === 'loading'}
+					<p>Loading ...</p>
+				{:else if !repo.data}
+					<p>Write username/organization and repo that you want to search</p>
+				{:else}
+					<table>
+						<tr>
+							<th>Repo Name</th>
+							<td>{repo.data?.data.name}</td>
+						</tr>
+						<tr>
+							<th>Repo Link</th>
+							<td> <a href={repo.data?.data.svn_url}>{repo.data?.data.svn_url}</a></td>
+						</tr>
+					</table>
+
+					<button on:click={() => getRepoBranches(formInput)}>Get Branches</button>
+				{/if}
+
+				{#if branches.data}
+					<h2>List of branches</h2>
+					<h4>Total Branches: {branches.data?.length}</h4>
+					<h5>{selectedBranches.length} of {branches.data?.length} selected</h5>
+
+					<button
+						class="bg-red-500 hover:bg-red-700 text-white p-2 rounded-sm"
+						on:click={handleBranchDelete}>Delete Unprotected Branches</button
+					>
+
+					<ol class="list-decimal">
+						{#each branches.data as branch}
+							<li>
+								<div class="">
+									{#if deletedBranches[branch.name] && deletedBranches[branch.name].processing}
+										<span class="text-yellow-600">Deleting</span>
+									{/if}
+									{#if deletedBranches[branch.name] && deletedBranches[branch.name].deleted}
+										<span class="text-red-600">Deleted</span>
+									{/if}
+
+									<input
+										type="checkbox"
+										name={`branch[${branch.name}]`}
+										id={`branch_${branch.name}`}
+										value={branch.name}
+										bind:group={selectedBranches}
+									/>{branch.name} ({branch.protected ? 'protected' : 'not proteced'})
+								</div>
+							</li>
+						{/each}
+					</ol>
+				{/if}
+				{#if branches.status === 'loading'}
+					<p>Loading Branches ...</p>
+				{/if}
+			</div>
 		</div>
-
-		<div>
-			<h2>Repo Description</h2>
-
-			{#if repo.status === 'loading'}
-				<p>Loading ...</p>
-			{:else if !repo.data}
-				<p>Write username/organization and repo that you want to search</p>
-			{:else}
-				<table>
-					<tr>
-						<th>Repo Name</th>
-						<td>{repo.data?.data.name}</td>
-					</tr>
-					<tr>
-						<th>Repo Link</th>
-						<td> <a href={repo.data?.data.svn_url}>{repo.data?.data.svn_url}</a></td>
-					</tr>
-				</table>
-
-				<button on:click={() => getRepoBranches(formInput)}>Get Branches</button>
-			{/if}
-
-			{#if branches.data}
-				<h2>List of branches</h2>
-				<h4>Total Branches: {branches.data?.length}</h4>
-				<h5>{selectedBranches.length} of {branches.data?.length} selected</h5>
-
-				<button
-					class="bg-red-500 hover:bg-red-700 text-white p-2 rounded-sm"
-					on:click={handleBranchDelete}>Delete Unprotected Branches</button
-				>
-
-				<ol class="list-decimal">
-					{#each branches.data as branch}
-						<li>
-							<input
-								type="checkbox"
-								name={`branch[${branch.name}]`}
-								id={`branch_${branch.name}`}
-								value={branch.name}
-								bind:group={selectedBranches}
-							/>{branch.name} ({branch.protected ? 'protected' : 'not proteced'})
-						</li>
-					{/each}
-				</ol>
-			{/if}
-			{#if branches.status === 'loading'}
-				<p>Loading Branches ...</p>
-			{/if}
-		</div>
-	</div>
+	{/if}
 </div>
