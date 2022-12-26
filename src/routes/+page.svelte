@@ -103,18 +103,11 @@
 			repo.error = 'Owner or repo is empty';
 		}
 
-		let loop = 1;
-
 		try {
 			branches.status = 'loading';
 			const branchesIterator = getAllBranchesOfRepo(input, octokit);
 
 			for await (const setOfBranches of branchesIterator) {
-				loop++;
-
-				if (loop > 4) {
-					break;
-				}
 				branches.data = [...(branches.data || []), ...setOfBranches.data];
 
 				selectedBranches = branches.data.map(({ name }) => name);
