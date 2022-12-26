@@ -1,5 +1,5 @@
 <script>
-	import('../assets/app.css');
+	import '../assets/app.css';
 </script>
 
 <div class="container mx-auto">
